@@ -1,8 +1,7 @@
-from flask_restful import Resource
 from flask import request
 
 
-class Alice(Resource):
+class Alice:
     def post(self):
         pass
 
