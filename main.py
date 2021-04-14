@@ -9,12 +9,13 @@ from abc import ABC, abstractmethod
 
 # базовое логирование (надо улучшить)
 logging.basicConfig(
-    filename='example.log',
+    filename='logs.log',
     format='%(asctime)s %(levelname)s %(name)s %(message)s'
 )
 
 app = Flask(__name__)
 api = Api(app)
+api.add_resource(Alice, '/app')
 
 # secret key(надо настроить env)
 # app.config['SECRET_KEY']
@@ -58,7 +59,7 @@ class State(ABC):
 
 def main():
     # работа с Алисой
-    # тут будет происходить смена
+    # тут будет происходить смена состояний
     app.run()
 
 
