@@ -65,9 +65,6 @@ class AliceResponse:
             }
         }
 
-    def dumps(self):
-        return self.__str__()
-
     def set_answer(self, answer):
         self._response['response']['text'] = answer
 
@@ -84,7 +81,7 @@ class AliceResponse:
         self._response['response']['card'] = image
 
     def __str__(self):
-        return json.dumps(self._response)
+        return self.to_json()
 
     def __repr__(self):
-        return self.__str__()
+        return self.to_json()
