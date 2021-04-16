@@ -1,23 +1,28 @@
-from flask import Flask
+from flask import Flask, request
 import logging
-import json
-import sys
-import os
 
-# базовое логирование (надо улучшить)
-logging.basicConfig(
-    filename='logs.log',
-    format='%(asctime)s %(levelname)s %(name)s %(message)s'
-)
+from state import my_context
+from alice import AliceRequest, AliceResponse
 
 app = Flask(__name__)
 
+logging.basicConfig(level=logging.DEBUG)
 
+sessionStorage = {}
+
+
+@app.route('/post', methods=['POST'])
 def main():
-    # работа с Алисой
-    # тут будет происходить смена состояний
-    app.run()
+    logging.info(f"Request {request.json}")
+
+    alice_request = AliceRequest(request.json)
+    alice_response = AliceResponse(alice_request)
+
+    my_context.handle_dialog(alice_response, alice_request)
+
+    logging.info(f"Response {alice_response}")
+    return alice_response.to_json()
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(port=5000)
