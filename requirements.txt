@@ -2,4 +2,3 @@ flask~=1.1.2
 logging 0.4.9.6
 python-dotenv~=0.17.0
 requests~=2.24.0
-pybase64
