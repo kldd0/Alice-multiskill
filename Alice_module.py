@@ -21,6 +21,10 @@ class AliceRequest:
         return self._request['request']['nlu']['tokens']
 
     @property
+    def request_string(self):
+        return self._request['request']['original_utterance']
+
+    @property
     def is_new_session(self) -> bool:
         return bool(self._request['session']['new'])
 

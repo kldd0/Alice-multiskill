@@ -1,6 +1,6 @@
 from flask import Flask, request
 import logging
-from Context_module import cnt
+from Context_module import Context, HelloState
 from Alice_module import *
 
 # базовое логирование (надо улучшить)
@@ -11,6 +11,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
+cnt = Context(HelloState())
 
 
 @app.route('/post', methods=['POST'])
@@ -19,7 +20,6 @@ def main():
 
     alice_req = AliceRequest(request.json)
     alice_resp = AliceResponse(alice_req)
-
     cnt.handle_dialog(alice_resp, alice_req)
     logging.info(f'Resp: {alice_resp}')
     return alice_resp.to_json()
