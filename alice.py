@@ -48,6 +48,14 @@ class AliceRequest:
     def dates(self) -> list:
         return self.__get_entity('YANDEX.DATETIME')
 
+    @property
+    def foreign_words(self) -> list:
+        foreign = []
+        for word in self._request['request']['original_utterance'].split():
+            if not 1039 < (ord(word[0])) < 1105:
+                foreign.append(word)
+        return foreign
+
     def __str__(self):
         return json.dumps(self._request)
 

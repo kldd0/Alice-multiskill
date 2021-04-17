@@ -1,10 +1,10 @@
-import logging
-import requests
 import json
-
+import logging
 from abc import abstractmethod, ABC
-from alice import AliceRequest, AliceResponse
 
+import requests
+
+from alice import AliceRequest, AliceResponse
 
 EXIT_WORDS = {'выход', 'пока', 'выйти', 'уйти', 'покинуть'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
@@ -43,19 +43,39 @@ class State(ABC):
 class TranslatorState(State):
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        if set(req.words).intersection(TRANSLATE_WORDS):
-            req_for_translate, lang_fr, lang_to = self.get_translate_request(req.words)
-            res.set_answer(self.translate(req_for_translate, lang_fr, lang_to))
-
         if set(req.words).intersection(EXIT_WORDS):
             self.context.transition_to(HelloState())
+            return
 
-    def get_translate_request(self, words: list):
+        if set(req.words).intersection(TRANSLATE_WORDS):
+            translate_req, lang_fr, lang_to, callback = self.get_translate_request(req.words,
+                                                                                   req.foreign_words)
+            if callback == 'OK':
+                res.set_answer(self.translate(translate_req, lang_fr, lang_to))
+                return
+            res.set_answer(callback)
+
+    def get_translate_request(self, words: list, foreign_words: list):
         to_translate_words = self.__delete_unnecessary_words(words)
         language_from, language_to = self.__get_languages(words)
+        if not language_from:
+            return None, language_from, language_to, 'Извините.' \
+                                                     ' Я пока не умею переводить с этого языка'
+        if not language_to:
+            return None, language_from, language_to, 'Извините.' \
+                                                     ' Я пока не умею переводить на этот язык'
         to_translate_words = self.__delete_languages(to_translate_words, language_from, language_to)
+        if not to_translate_words:
+            to_translate_words = foreign_words
+        if not to_translate_words:
+            return None, language_from, language_to, 'Извините. Вы не ввели то, что нужно перевести.'
+        if language_from == language_to:
+            if foreign_words and language_from == language_to == 'ru':
+                return None, language_from, language_to, 'Извините. Я пока не умею распознавать' \
+                                                         ' языки.Укажите язык пожалуйста'
+            return None, language_from, language_to, 'Извините. Укажите два разных языка пожалуйста'
 
-        return ' '.join(to_translate_words), language_from, language_to
+        return ' '.join(to_translate_words), language_from, language_to, 'OK'
 
     @staticmethod
     def __delete_unnecessary_words(words: list) -> list:
@@ -69,9 +89,9 @@ class TranslatorState(State):
         language_to = 'en'
 
         for i in range(len(words)):
-            if words[i] == 'с' and 'ого' in words[i + 1]:
+            if words[i] == 'с' and 'ского' in words[i + 1]:
                 language_from = self.__language_to_iso(f"{words[i + 1][:-3]}ий".title())
-            elif words[i] == 'на' and 'ий' in words[i + 1]:
+            elif words[i] == 'на' and 'ский' in words[i + 1]:
                 language_to = self.__language_to_iso(words[i + 1].title())
 
         return language_from, language_to
@@ -96,9 +116,13 @@ class TranslatorState(State):
             language_to = f'на {to_lang}'
 
             my_words = ' '.join(words)
-            if language_from in my_words:
+            if f'{language_from} языка' in my_words:
+                my_words = my_words.replace(f'{language_from} языка', '')
+            elif language_from in my_words:
                 my_words = my_words.replace(language_from, '')
-            if language_to in my_words:
+            if f'{language_to} язык' in my_words:
+                my_words = my_words.replace(f'{language_to} язык', '')
+            elif language_to in my_words:
                 my_words = my_words.replace(language_to, '')
         return my_words.split()
 
@@ -116,7 +140,10 @@ class TranslatorState(State):
 
         response = requests.get(url, headers=headers, params=params).json()
 
-        return response['responseData']['translatedText']
+        translated = response['responseData']['translatedText']
+        if ''.join(translated.split()) == ''.join(text.split()):
+            return 'Вы указали неверный язык, перевод невозможен.'
+        return translated
 
 
 class HelloState(State):
@@ -138,4 +165,3 @@ class ExitState(State):
 
 
 my_context = Context(TranslatorState())
-
