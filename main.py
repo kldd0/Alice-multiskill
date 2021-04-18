@@ -1,28 +1,29 @@
 from flask import Flask, request
 import logging
+from Context_module import Context, HelloState
+from Alice_module import *
 
-from state import my_context
-from alice import AliceRequest, AliceResponse
+# базовое логирование (надо улучшить)
+logging.basicConfig(
+    filename='logs.log',
+    format='%(asctime)s %(levelname)s %(name)s %(message)s',
+    level=logging.DEBUG
+)
 
 app = Flask(__name__)
-
-logging.basicConfig(level=logging.DEBUG)
-
-sessionStorage = {}
+cnt = Context(HelloState())
 
 
 @app.route('/post', methods=['POST'])
 def main():
-    logging.info(f"Request {request.json}")
+    logging.info(f'Req: {request.json}')
 
-    alice_request = AliceRequest(request.json)
-    alice_response = AliceResponse(alice_request)
-
-    my_context.handle_dialog(alice_response, alice_request)
-
-    logging.info(f"Response {alice_response}")
-    return alice_response.to_json()
+    alice_req = AliceRequest(request.json)
+    alice_resp = AliceResponse(alice_req)
+    cnt.handle_dialog(alice_resp, alice_req)
+    logging.info(f'Resp: {alice_resp}')
+    return alice_resp.to_json()
 
 
-if __name__ == '__main__':
-    app.run(port=5000)
+if __name__ == "__main__":
+    app.run(port=8989)
