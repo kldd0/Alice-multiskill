@@ -80,6 +80,7 @@ class ScanUrlState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest) -> None:
         try:
             if set(req.words).intersection(EXIT_WORDS):
+                res.set_answer('Пока :)')
                 self.context.transition_to(ExitState())
             if set(req.words).intersection(THANKS_WORDS):
                 res.set_answer('Ага, не за что :)')
@@ -316,9 +317,11 @@ class HelloState(State):
 
 class ChoiceState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        if set(req.words).intersection(SKILLS_WORDS):
-            # пока только scan skill
-            # доделать для translate
+        if set(req.words).intersection(SKILLS_WORDS) == {'переводчик'}:
+            self.context.transition_to(TranslatorState())
+            res.set_answer('Хорошо, давай переводить!\n'
+                           'Пиши: переведи [слово]')
+        elif set(req.words).intersection(SKILLS_WORDS) == {'сканер'}:
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
         else:
@@ -328,5 +331,5 @@ class ChoiceState(State):
 
 class ExitState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        res.set_answer('Пока. Работа с навыком закончена :)')
+        res.set_answer('Работа с навыком закончена :)')
         self.context.transition_to(HelloState())
