@@ -64,6 +64,10 @@ class ScanUrlState(State):
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest) -> None:
         try:
+            if set(req.words).intersection(EXIT_WORDS):
+                self.context.transition_to(ExitState())
+            if set(req.words).intersection(THANKS_WORDS):
+                res.set_answer('Ага, не за что :)')
             if self.__check_url_regex(req.request_string):
                 result = self.scan(req.request_string)
                 if result:
@@ -76,15 +80,11 @@ class ScanUrlState(State):
                     result = self.scan(cleaned_request)
                     logging.info(result)
                     if result:
-                        res.set_answer(self.scan(result))
+                        res.set_answer(result)
                     else:
                         raise UserWarning
                 else:
                     raise UserWarning
-            elif set(req.words).intersection(THANKS_WORDS):
-                res.set_answer('Ага, не за что :)')
-            elif set(req.words).intersection(EXIT_WORDS):
-                self.context.transition_to(ExitState())
             else:
                 raise UserWarning
         except UserWarning:
@@ -169,7 +169,7 @@ class ChoiceState(State):
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
         else:
-            res.set_answer('У нас есть несколько функций: переводчик и сканнер. '
+            res.set_answer('У нас есть несколько функций: переводчик и сканер. '
                            'Что хочешь попробовать?')
 
 
