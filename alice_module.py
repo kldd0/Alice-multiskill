@@ -59,6 +59,10 @@ class AliceRequest:
         return self._request['session']
 
     @property
+    def request_string(self):
+        return self._request['request']['original_utterance']
+
+    @property
     def version(self) -> str:
         return self._request['version']
 

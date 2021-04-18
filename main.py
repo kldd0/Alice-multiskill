@@ -1,7 +1,7 @@
 from flask import Flask, request
 import logging
-from Context_module import Context, HelloState
-from Alice_module import *
+from context_module import Context, HelloState
+from alice_module import *
 
 # базовое логирование (надо улучшить)
 logging.basicConfig(
