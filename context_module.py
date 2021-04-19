@@ -135,6 +135,7 @@ class ScanUrlState(State):
     def __get_info(url_id: str) -> dict or bool:
         params = {'x-apikey': API_KEY}
         response = requests.get(f'https://www.virustotal.com/api/v3/analyses/{url_id}', headers=params)
+        logging.info(response.json())
         if response.status_code == 200:
             res = dict(response.json()['data']['attributes']['results'])
             results = dict()

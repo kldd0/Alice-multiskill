@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
-cnt = Context(HelloState())
+sessions = {}
 
 
 @app.route('/post', methods=['POST'])
@@ -20,8 +20,14 @@ def main():
 
     alice_req = AliceRequest(request.json)
     alice_resp = AliceResponse(alice_req)
-    cnt.handle_dialog(alice_resp, alice_req)
-    logging.info(f'Resp: {alice_resp}')
+    if alice_req.is_new_session:
+        cnt = Context(HelloState())
+        sessions[alice_req.user_id] = cnt
+        cnt.handle_dialog(alice_resp, alice_req)
+        logging.info(f'Resp: {alice_resp}')
+        return alice_resp.to_json()
+    sessions[alice_req.user_id].handle_dialog(alice_resp, alice_req)
+    logging.info(f'Resp: {alice_resp} {sessions}')
     return alice_resp.to_json()
 
 
