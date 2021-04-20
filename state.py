@@ -205,6 +205,23 @@ class TranslatorState(State):
 
 
 class MapsState(State):
+    """Класс MapsState - одно из состояний навыка для Алисы для взаимодействия с API Яндекс.Карт
+    ---------------------------------------------------------------------------------------------
+    Note:
+        На карте показывается первый введеный пользователем адрес
+    ----------------------------------------------------------------------------------------------
+    Основная задача состояния - показывать на карте адрес, который ввел пользователь
+    ---------------------------------------------------------------------------------------------
+    Методы:
+        handle_dialog(res, req) - основная функция для взаимодействия с пользователем.
+        get_image(geo_name) - возвращает image_id загруженной картинки Яндекс.Карт.
+        delete_user_requests(ignore_id) - удаляет предыдущие картинки пользователей из памяти навыка.
+        __get_all_images() - возвращает список всех изображений в памяти навыка.
+        __get_place_coordinates() - возвращает координаты места, введеного текстом.
+        __get_place_image() - возвращает фотографию места по координатам.
+        __upload_to_resources() - загружает фотографию места в память навыка и вовзращает id.
+    ------------------------------------------------------------------------------------------------
+    """
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
         if req.geo_names:
@@ -229,15 +246,16 @@ class MapsState(State):
     def get_image(self, geo_name):
         coordinates, callback = self.__get_place_coordinates(geo_name)
         if callback == 'Error':
-            return None,
+            return None, 'Error'
 
         image_url, callback = self.__get_place_image(coordinates)
         if callback == 'Error':
-            return
+            return None, 'Error'
 
         image_id, callback = self.__upload_to_resources(image_url)
         if callback == 'Error':
-            return
+            return None, 'Error'
+
         return image_id, 'OK'
 
     def delete_user_requests(self, ignore_id=None):
