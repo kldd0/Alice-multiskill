@@ -1,13 +1,21 @@
 import json
 import logging
+import os
 from abc import abstractmethod, ABC
 
 import requests
 
 from alice import AliceRequest, AliceResponse
+from dotenv import load_dotenv
+
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
 
 EXIT_WORDS = {'выход', 'пока', 'выйти', 'уйти', 'покинуть'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
+
+SKILL_ID = os.getenv('SKILL_ID')
+ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
 
 
 class Context:
@@ -99,6 +107,11 @@ class TranslatorState(State):
                 res.set_answer(self.translate(translate_req, lang_fr, lang_to))
                 return
             res.set_answer(callback)
+            return
+        res.set_answer('Пиши: переведи [слово/предложение] с [языка] на [язык].\n'
+                       'По умолчанию перевод производится с русского на английский\n'
+                       'Для более подробной помощи перейдите в раздел "Помощь"')
+        res.set_suggests([{'title': 'Выйти', 'hide': True}])
 
     def get_translate_request(self, words: list, foreign_words: list):
         to_translate_words = self.__delete_unnecessary_words(words)
@@ -191,6 +204,110 @@ class TranslatorState(State):
         return translated
 
 
+class MapsState(State):
+
+    def handle_dialog(self, res: AliceResponse, req: AliceRequest):
+        if req.geo_names:
+            image = {
+                'type': "BigImage",
+                'image_id': None,
+                'title': 'Вот это место на карте',
+            }
+
+            geo_name = ' '.join(val for key, val in req.geo_names[0].items())
+            image_id, callback = self.get_image(geo_name)
+            if callback == 'OK':
+                image['image_id'] = image_id
+                res.set_image(image)
+                self.delete_user_requests(image_id)
+            else:
+                res.set_answer('Произошла ошибка')
+        if set(req.words).intersection(EXIT_WORDS):
+            self.delete_user_requests()
+        res.set_answer('Введи любое место и я тебе его покажу!')
+
+    def get_image(self, geo_name):
+        coordinates, callback = self.__get_place_coordinates(geo_name)
+        if callback == 'Error':
+            return None,
+
+        image_url, callback = self.__get_place_image(coordinates)
+        if callback == 'Error':
+            return
+
+        image_id, callback = self.__upload_to_resources(image_url)
+        if callback == 'Error':
+            return
+        return image_id, 'OK'
+
+    def delete_user_requests(self, ignore_id=None):
+        delete_request = 'https://dialogs.yandex.net/api/v1/skills/' \
+                         f'{SKILL_ID}/images/'
+        headers = {'Authorization': f'OAuth {ACCESS_TOKEN}'}
+        for image in self.__get_all_images():
+            if image['id'] != ignore_id:
+                requests.delete(f'{delete_request}{image["id"]}', headers=headers)
+
+    @staticmethod
+    def __get_all_images():
+        get_request = 'https://dialogs.yandex.net/api/v1/skills/' \
+                      f'{SKILL_ID}/images'
+
+        headers = {'Authorization': F'OAuth {ACCESS_TOKEN}'}
+
+        response = requests.get(get_request, headers=headers)
+        if response:
+            return response.json()['images']
+
+    @staticmethod
+    def __get_place_coordinates(geo_name):
+        geocode_request = 'https://geocode-maps.yandex.ru/1.x/'
+        geocode_params = {
+            'apikey': '40d1649f-0493-4b70-98ba-98533de7710b',
+            'geocode': geo_name,
+            'format': 'json'
+        }
+
+        response = requests.get(geocode_request, params=geocode_params)
+        if response:
+            json_response = response.json()
+            toponym = json_response["response"]["GeoObjectCollection"]["featureMember"][0]
+            coordinates = toponym["GeoObject"]['Point']['pos']
+            return coordinates, 'OK'
+        return None, 'Error'
+
+    @staticmethod
+    def __get_place_image(coordinates):
+        map_request = "http://static-maps.yandex.ru/1.x/"
+        map_params = {
+            'll': ','.join(coordinates.split()),
+            'spn': '0.002,0.002',
+            'l': 'sat,skl'}
+
+        response = requests.get(map_request, params=map_params)
+        if response:
+            return response.url, 'OK'
+        return None, 'Error'
+
+    @staticmethod
+    def __upload_to_resources(image):
+        upload_request = 'https://dialogs.yandex.net/api/v1/skills/' \
+                         f'{SKILL_ID}/images'
+        headers = {
+            'Authorization': f'OAuth {ACCESS_TOKEN}',
+            'Content-Type': 'application/json'
+        }
+
+        json_req = {'url': image}
+        response = requests.post(upload_request, headers=headers, json=json_req)
+        if response:
+            json_response = response.json()
+            image_id = json_response['image']['id']
+            return image_id, 'OK'
+
+        return None, 'Error'
+
+
 class HelloState(State):
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
@@ -209,4 +326,4 @@ class ExitState(State):
 #
 
 
-my_context = Context(TranslatorState())
+my_context = Context(MapsState())
