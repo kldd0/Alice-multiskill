@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from alice_module import *
+from conditions import CONDITIONS
 import re
 import logging
 from dotenv import load_dotenv
@@ -20,11 +21,13 @@ SCAN_WORDS = {'проверь', 'просканируй', 'сканируй', '�
 EXIT_WORDS = {'выход', 'пока', 'выйти', 'уйти', 'покинуть'}
 CHOICE_WORDS = {'функция', 'функции', 'возможности', 'возможность', 'варианты', 'вариант',
                 'модули', 'модуль', 'умеешь'}
-SKILLS_WORDS = {'переводчик', 'сканер'}
+SKILLS_WORDS = {'переводчик', 'сканер', 'погода'}
 THANKS_WORDS = {'спасибо', 'класс', 'круто'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
 
 API_KEY = os.getenv('API_KEY')
+WHETHER_API_KEY = os.getenv('WHETHER_API_KEY')
+GEOCODER_API_KEY = os.getenv('GEOCODER_API_KEY')
 VT_URL = 'https://www.virustotal.com/api/v3/urls'
 
 
@@ -310,6 +313,56 @@ class TranslatorState(State):
         return translated
 
 
+class WeatherState(State):
+    def handle_dialog(self, res: AliceResponse, req: AliceRequest):
+        try:
+            if set(req.words).intersection(THANKS_WORDS):
+                res.set_answer('Ага, не за что :)')
+            else:
+                weather = self.__get_info(req)
+                if weather:
+                    res.set_answer(weather)
+                else:
+                    raise UserWarning
+        except UserWarning:
+            res.set_answer('Что-то вы делаете не так, либо пробуйте еще, либо измените ваш запрос.')
+
+    @staticmethod
+    def __string_for_geocoder(place_dict: dict) -> str or bool:
+        if len(place_dict.keys()):
+            return ' '.join([place_dict[key] for key in place_dict.keys()])
+        return False
+
+    def __get_info(self, req: AliceRequest) -> dict or bool:
+        if req.geo_names:
+            place_req = self.__string_for_geocoder(req.geo_names[0])
+            coord = self.__get_coord(place_req)
+            if coord:
+                params = {'X-Yandex-API-Key': WHETHER_API_KEY}
+                lat = coord['lat']
+                lon = coord['lon']
+                url = f'https://api.weather.yandex.ru/v2/forecast?lat={lat}&lon={lon}&extra=true'
+                req = requests.get(url, headers=params)
+                if req.status_code == 200:
+                    now_temp = req.json()['fact']['temp']
+                    feels_like = req.json()['fact']['feels_like']
+                    cond = CONDITIONS[req.json()['fact']['condition']]
+                    wind = req.json()['fact']['wind_speed']
+                    yesterday = req.json()['yesterday']['temp']
+                    return f'СЕГОДНЯ: температура: {now_temp}°C, ощущается как {feels_like}°C; условия: {cond}, ' \
+                           f'ветер: {wind} м/с;\nЗАВТРА: температура: {yesterday}°C'
+        return False
+
+    @staticmethod
+    def __get_coord(place: str) -> dict or bool:
+        r = requests.get(f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}&geocode={place}')
+        if r.status_code == 200:
+            json_data = r.json()
+            coord = json_data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point']['pos'].split()
+            return {'lat': coord[1], 'lon': coord[0]}
+        return False
+
+
 class HelloState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
         res.set_answer('Привет. Мы сделали прикольный навык!')
@@ -325,8 +378,12 @@ class ChoiceState(State):
         elif set(req.words).intersection(SKILLS_WORDS) == {'сканер'}:
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
+        elif set(req.words).intersection(SKILLS_WORDS) == {'погода'}:
+            self.context.transition_to(WhetherState())
+            res.set_answer('Хорошо, пиши место, где надо узнать погоду!\n'
+                           'Пиши: [место]')
         else:
-            res.set_answer('У нас есть несколько функций: переводчик и сканер. '
+            res.set_answer('У нас есть несколько функций: переводчик, сканер, погода. '
                            'Что хочешь попробовать?')
 
 
