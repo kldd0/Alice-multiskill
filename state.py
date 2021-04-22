@@ -16,6 +16,9 @@ TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
 
 SKILL_ID = os.getenv('SKILL_ID')
 ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
+TRANSLATOR_TOKEN = os.getenv('TRANSLATOR_TOKEN')
+
+MAPS_URL = f'https://dialogs.yandex.net/api/v1/skills/{SKILL_ID}/images/'
 
 
 class Context:
@@ -192,7 +195,7 @@ class TranslatorState(State):
                   "onlyprivate": "0"}
 
         headers = {
-            'x-rapidapi-key': "69bdf32b4cmsh23d9e9126500c48p192dfdjsnde5efcc7ffd9",
+            'x-rapidapi-key': TRANSLATOR_TOKEN,
             'x-rapidapi-host': "translated-mymemory---translation-memory.p.rapidapi.com"
         }
 
@@ -259,21 +262,17 @@ class MapsState(State):
         return image_id, 'OK'
 
     def delete_user_requests(self, ignore_id=None):
-        delete_request = 'https://dialogs.yandex.net/api/v1/skills/' \
-                         f'{SKILL_ID}/images/'
         headers = {'Authorization': f'OAuth {ACCESS_TOKEN}'}
         for image in self.__get_all_images():
             if image['id'] != ignore_id:
-                requests.delete(f'{delete_request}{image["id"]}', headers=headers)
+                requests.delete(f'{MAPS_URL}{image["id"]}', headers=headers)
 
     @staticmethod
     def __get_all_images():
-        get_request = 'https://dialogs.yandex.net/api/v1/skills/' \
-                      f'{SKILL_ID}/images'
 
         headers = {'Authorization': F'OAuth {ACCESS_TOKEN}'}
 
-        response = requests.get(get_request, headers=headers)
+        response = requests.get(MAPS_URL, headers=headers)
         if response:
             return response.json()['images']
 
@@ -309,15 +308,13 @@ class MapsState(State):
 
     @staticmethod
     def __upload_to_resources(image):
-        upload_request = 'https://dialogs.yandex.net/api/v1/skills/' \
-                         f'{SKILL_ID}/images'
         headers = {
             'Authorization': f'OAuth {ACCESS_TOKEN}',
             'Content-Type': 'application/json'
         }
 
         json_req = {'url': image}
-        response = requests.post(upload_request, headers=headers, json=json_req)
+        response = requests.post(MAPS_URL, headers=headers, json=json_req)
         if response:
             json_response = response.json()
             image_id = json_response['image']['id']
@@ -344,4 +341,4 @@ class ExitState(State):
 #
 
 
-my_context = Context(MapsState())
+my_context = Context(TranslatorState())
