@@ -26,7 +26,7 @@ THANKS_WORDS = {'спасибо', 'класс', 'круто'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
 
 API_KEY = os.getenv('API_KEY')
-WHETHER_API_KEY = os.getenv('WHETHER_API_KEY')
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 GEOCODER_API_KEY = os.getenv('GEOCODER_API_KEY')
 VT_URL = 'https://www.virustotal.com/api/v3/urls'
 
@@ -338,7 +338,7 @@ class WeatherState(State):
             place_req = self.__string_for_geocoder(req.geo_names[0])
             coord = self.__get_coord(place_req)
             if coord:
-                params = {'X-Yandex-API-Key': WHETHER_API_KEY}
+                params = {'X-Yandex-API-Key': WEATHER_API_KEY}
                 lat = coord['lat']
                 lon = coord['lon']
                 url = f'https://api.weather.yandex.ru/v2/forecast?lat={lat}&lon={lon}&extra=true'
@@ -379,7 +379,7 @@ class ChoiceState(State):
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
         elif set(req.words).intersection(SKILLS_WORDS) == {'погода'}:
-            self.context.transition_to(WhetherState())
+            self.context.transition_to(WeatherState())
             res.set_answer('Хорошо, пиши место, где надо узнать погоду!\n'
                            'Пиши: [место]')
         else:
