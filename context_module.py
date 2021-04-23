@@ -76,9 +76,20 @@ class State(ABC):
 
 
 class ScanUrlState(State):
-    """
-    Реализация класса сканирования для удобной работы с VirusTotal API
-    """
+    """Класс ScanUrlState - одно из состояний навыка Алисы.
+    ----------------------------------------------------------
+    Задача класса - реализовывать сканер ссылок.
+    --------------------------------------------------------------------------------------------
+    Методы
+        handle_dialog(res, req) - основная функция управления диалогом с пользователем
+        __delete_unnecessary_words(words) - удаляет из списка слов пользователя ненужные для
+            перевода слова.
+        __check_url_regex(url: str) - проверяет ссылку на соответствие стандартному формату ссылок.
+        __get_url_id(url: str) - возвращает id ссылки, необходимый для работы с API.
+        __get_info(url_id: str) - возвращает отчет по ссылке от разных антивирусов.
+        scan(self, url: str) - основной метод класса, включает в себя взаимодействие всех методов,
+            в итоге возвращает необходимый ответ пользователю.
+    ---------------------------------------------------------------------------------------------"""
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest) -> None:
         try:
@@ -314,8 +325,24 @@ class TranslatorState(State):
 
 
 class WeatherState(State):
+    """Класс WeatherState - одно из состояний навыка Алисы.
+        ----------------------------------------------------------
+        Задача класса - реализовывать погодный информатор.
+        --------------------------------------------------------------------------------------------
+        Методы
+            handle_dialog(res, req) - основная функция управления диалогом с пользователем
+            __string_for_geocoder(place_dict: dict) - возвращает очищенный гео-запрос, необходимый
+                для определения координат места, в котором надо узнать погоду.
+            __get_coord(place: str) - возвращает словарь координат места.
+            __get_info(self, req: AliceRequest) - основной метод класса, включает в себя взаимодействие всех методов,
+                в итоге возвращает необходимый ответ пользователю.
+        ---------------------------------------------------------------------------------------------"""
+
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
         try:
+            if set(req.words).intersection(EXIT_WORDS):
+                self.context.transition_to(HelloState())
+                return
             if set(req.words).intersection(THANKS_WORDS):
                 res.set_answer('Ага, не за что :)')
             else:
@@ -331,6 +358,16 @@ class WeatherState(State):
     def __string_for_geocoder(place_dict: dict) -> str or bool:
         if len(place_dict.keys()):
             return ' '.join([place_dict[key] for key in place_dict.keys()])
+        return False
+
+    @staticmethod
+    def __get_coord(place: str) -> dict or bool:
+        r = requests.get(f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}&geocode={place}')
+        if r.status_code == 200:
+            json_data = r.json()
+            coord = json_data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point'][
+                'pos'].split()
+            return {'lat': coord[1], 'lon': coord[0]}
         return False
 
     def __get_info(self, req: AliceRequest) -> dict or bool:
@@ -351,15 +388,6 @@ class WeatherState(State):
                     yesterday = req.json()['yesterday']['temp']
                     return f'СЕГОДНЯ: температура: {now_temp}°C, ощущается как {feels_like}°C; условия: {cond}, ' \
                            f'ветер: {wind} м/с;\nЗАВТРА: температура: {yesterday}°C'
-        return False
-
-    @staticmethod
-    def __get_coord(place: str) -> dict or bool:
-        r = requests.get(f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}&geocode={place}')
-        if r.status_code == 200:
-            json_data = r.json()
-            coord = json_data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point']['pos'].split()
-            return {'lat': coord[1], 'lon': coord[0]}
         return False
 
 
