@@ -3,7 +3,6 @@ import logging
 from context_module import Context, HelloState
 from alice_module import *
 
-# базовое логирование (надо улучшить)
 logging.basicConfig(
     filename='logs.log',
     format='%(asctime)s %(levelname)s %(name)s %(message)s',
