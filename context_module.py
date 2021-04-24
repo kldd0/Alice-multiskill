@@ -1,27 +1,28 @@
-from __future__ import annotations
+import logging
+import os
+import re
 from abc import ABC, abstractmethod
+
+import requests
+from dotenv import load_dotenv
 
 from alice_module import *
 from conditions import CONDITIONS
-import re
-import logging
-from dotenv import load_dotenv
-import requests
-import os
 
 env_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(env_path)
 logging.basicConfig(
     filename='logs.log',
     format='%(asctime)s %(levelname)s %(name)s %(message)s',
-    level=logging.DEBUG
+    level=logging.INFO
 )
 
-SCAN_WORDS = {'проверь', 'просканируй', 'сканируй', 'проверить', 'просканировать', 'сканировать', 'ссылка'}
+SCAN_WORDS = {'проверь', 'просканируй', 'сканируй', 'проверить', 'просканировать', 'сканировать',
+              'ссылка'}
 EXIT_WORDS = {'выход', 'пока', 'выйти', 'уйти', 'покинуть'}
 CHOICE_WORDS = {'функция', 'функции', 'возможности', 'возможность', 'варианты', 'вариант',
                 'модули', 'модуль', 'умеешь'}
-SKILLS_WORDS = {'переводчик', 'сканер', 'погода'}
+
 THANKS_WORDS = {'спасибо', 'класс', 'круто'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
 
@@ -100,8 +101,10 @@ class ScanUrlState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest) -> None:
         try:
             if set(req.words).intersection(EXIT_WORDS):
-                res.set_answer('Пока :)')
-                self.context.transition_to(ExitState())
+                self.context.transition_to(ChoiceState())
+                res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
+                               'Что хочешь попробовать?')
+                return
             if set(req.words).intersection(THANKS_WORDS):
                 res.set_answer('Ага, не за что :)')
             if self.__check_url_regex(req.request_string):
@@ -131,12 +134,12 @@ class ScanUrlState(State):
         for e in words:
             if self.__check_url_regex(e):
                 return e
-        return False
 
     @staticmethod
     def __check_url_regex(url: str) -> bool:
         pattern = '^((http|https):\\/\\/)?(www\\.)?([A-Za-zА-Яа-я0-9]' \
-                  '{1}[A-Za-zА-Яа-я0-9\\-]*\\.?)*\\.{1}[A-Za-zА-Яа-я0-9-]{2,8}(\\/([\\w#!:.?+=&%@!\\-\\/])*)?'
+                  '{1}[A-Za-zА-Яа-я0-9\\-]*\\.?)*\\.{1}[A-Za-zА-Яа-я0-9-]' \
+                  '{2,8}(\\/([\\w#!:.?+=&%@!\\-\\/])*)?'
         matches = re.match(pattern, url)
         if matches:
             return True
@@ -149,12 +152,12 @@ class ScanUrlState(State):
         if req.status_code == 200:
             url_id = req.json()['data']['id']
             return url_id
-        return False
 
     @staticmethod
     def __get_info(url_id: str) -> dict or bool:
         params = {'x-apikey': API_KEY}
-        response = requests.get(f'https://www.virustotal.com/api/v3/analyses/{url_id}', headers=params)
+        response = requests.get(f'https://www.virustotal.com/api/v3/analyses/{url_id}',
+                                headers=params)
         logging.info(response.json())
         if response.status_code == 200:
             res = dict(response.json()['data']['attributes']['results'])
@@ -189,7 +192,8 @@ class ScanUrlState(State):
                 else:
                     comment = 'Оу, братец, как-то подозрительно не думаю, что стоит переходить, ' \
                               'либо используй защиту!\n'
-                return comment + f'''Отчет антивирусов: {' '.join([f"{e} = {info[e]}" for e in info.keys()])}'''
+                report = f"Отчет антивирусов: {' '.join([f'{e} = {info[e]}' for e in info.keys()])}"
+                return comment + report
         return False
 
 
@@ -228,7 +232,9 @@ class TranslatorState(State):
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
         if set(req.words).intersection(EXIT_WORDS):
-            self.context.transition_to(HelloState())
+            self.context.transition_to(ChoiceState())
+            res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
+                           'Что хочешь попробовать?')
             return
 
         if set(req.words).intersection(TRANSLATE_WORDS):
@@ -327,9 +333,10 @@ class TranslatorState(State):
             'x-rapidapi-host': "translated-mymemory---translation-memory.p.rapidapi.com"
         }
 
-        response = requests.get(url, headers=headers, params=params).json()
+        response = requests.get(url, headers=headers, params=params)
+        logging.info(f'TranslatorRequest: {response.url}')
 
-        translated = response['responseData']['translatedText']
+        translated = response.json()['responseData']['translatedText']
         if ''.join(translated.split()) == ''.join(text.split()):
             return 'Вы указали неверный язык, перевод невозможен.'
         return translated
@@ -345,14 +352,16 @@ class WeatherState(State):
             __string_for_geocoder(place_dict: dict) - возвращает очищенный гео-запрос, необходимый
                 для определения координат места, в котором надо узнать погоду.
             __get_coord(place: str) - возвращает словарь координат места.
-            __get_info(self, req: AliceRequest) - основной метод класса, включает в себя взаимодействие всех методов,
-                в итоге возвращает необходимый ответ пользователю.
-        ---------------------------------------------------------------------------------------------"""
+            __get_info(self, req: AliceRequest) - основной метод класса, включает в себя
+                взаимодействие всех методов. В итоге возвращает необходимый ответ пользователю.
+        -----------------------------------------------------------------------------------------"""
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
         try:
             if set(req.words).intersection(EXIT_WORDS):
-                self.context.transition_to(HelloState())
+                self.context.transition_to(ChoiceState())
+                res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
+                               'Что хочешь попробовать?')
                 return
             if set(req.words).intersection(THANKS_WORDS):
                 res.set_answer('Ага, не за что :)')
@@ -373,11 +382,13 @@ class WeatherState(State):
 
     @staticmethod
     def __get_coord(place: str) -> dict or bool:
-        r = requests.get(f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}&geocode={place}')
+        r = requests.get(
+            f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}'
+            f'&geocode={place}')
         if r.status_code == 200:
             json_data = r.json()
-            coord = json_data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point'][
-                'pos'].split()
+            toponym = json_data['response']['GeoObjectCollection']['featureMember'][0]
+            coord = toponym['GeoObject']['Point']['pos'].split()
             return {'lat': coord[1], 'lon': coord[0]}
         return False
 
@@ -397,8 +408,9 @@ class WeatherState(State):
                     cond = CONDITIONS[req.json()['fact']['condition']]
                     wind = req.json()['fact']['wind_speed']
                     yesterday = req.json()['yesterday']['temp']
-                    return f'СЕГОДНЯ: температура: {now_temp}°C, ощущается как {feels_like}°C; условия: {cond}, ' \
-                           f'ветер: {wind} м/с;\nЗАВТРА: температура: {yesterday}°C'
+                    return f'СЕГОДНЯ:\n Температура: {now_temp}°C, ощущается как {feels_like}°C;' \
+                           f' \nУсловия: {cond}, ' \
+                           f'\nВетер: {wind} м/с;\nЗАВТРА: \nТемпература: {yesterday}°C'
         return False
 
 
@@ -439,7 +451,11 @@ class MapsState(State):
                 res.set_answer('Произошла ошибка')
         if set(req.words).intersection(EXIT_WORDS):
             self.delete_user_requests()
-        res.set_answer('Введи любое место и я тебе его покажу!')
+            self.context.transition_to(ChoiceState())
+            res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
+                           'Что хочешь попробовать?')
+            return
+        res.set_answer('Введи любое место и я тебе его покажу на карте!')
 
     def get_image(self, geo_name):
         coordinates, callback = self.__get_place_coordinates(geo_name)
@@ -461,6 +477,7 @@ class MapsState(State):
         for image in self.__get_all_images():
             if image['id'] != ignore_id:
                 requests.delete(f'{MAPS_URL}{image["id"]}', headers=headers)
+        logging.info(f'MapsRequestToSkill: Deleting all images. Exception: {ignore_id}')
 
     @staticmethod
     def __get_all_images():
@@ -468,6 +485,7 @@ class MapsState(State):
         headers = {'Authorization': F'OAuth {ACCESS_TOKEN}'}
 
         response = requests.get(MAPS_URL, headers=headers)
+        logging.info('MapsRequestToSkill: Getting all images')
         if response:
             return response.json()['images']
 
@@ -475,12 +493,13 @@ class MapsState(State):
     def __get_place_coordinates(geo_name):
         geocode_request = 'https://geocode-maps.yandex.ru/1.x/'
         geocode_params = {
-            'apikey': '40d1649f-0493-4b70-98ba-98533de7710b',
+            'apikey': GEOCODER_API_KEY,
             'geocode': geo_name,
             'format': 'json'
         }
 
         response = requests.get(geocode_request, params=geocode_params)
+        logging.info(f'MapsRequestToGeocoder: {response.url}')
         if response:
             json_response = response.json()
             toponym = json_response["response"]["GeoObjectCollection"]["featureMember"][0]
@@ -497,6 +516,7 @@ class MapsState(State):
             'l': 'sat,skl'}
 
         response = requests.get(map_request, params=map_params)
+        logging.info(f'MapsRequestToStatic: {response.url}')
         if response:
             return response.url, 'OK'
         return None, 'Error'
@@ -510,6 +530,7 @@ class MapsState(State):
 
         json_req = {'url': image}
         response = requests.post(MAPS_URL, headers=headers, json=json_req)
+        logging.info(f'MapsRequestToUpload: {image}')
         if response:
             json_response = response.json()
             image_id = json_response['image']['id']
@@ -520,29 +541,33 @@ class MapsState(State):
 
 class HelloState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        res.set_answer('Привет. Мы сделали прикольный навык!')
+        res.set_answer('Привет. Меня зовут Алиса.')
         self.context.transition_to(ChoiceState())
 
 
 class ChoiceState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        if set(req.words).intersection(SKILLS_WORDS) == {'переводчик'}:
+        if set(req.words).intersection(EXIT_WORDS):
+            res.set_answer('Пока!')
+            res.end_session()
+            return
+        if 'переводчик' in req.words:
             self.context.transition_to(TranslatorState())
             res.set_answer('Хорошо, давай переводить!\n'
                            'Пиши: переведи [слово]')
-        elif set(req.words).intersection(SKILLS_WORDS) == {'сканер'}:
+            return
+        if 'сканер' in req.words:
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
-        elif set(req.words).intersection(SKILLS_WORDS) == {'погода'}:
+            return
+        if 'погода' in req.words:
             self.context.transition_to(WeatherState())
             res.set_answer('Хорошо, пиши место, где надо узнать погоду!\n'
                            'Пиши: [место]')
-        else:
-            res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты. '
-                           'Что хочешь попробовать?')
-
-
-class ExitState(State):
-    def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        res.set_answer('Работа с навыком закончена :)')
-        self.context.transition_to(HelloState())
+            return
+        if 'карты' in req.words:
+            self.context.transition_to(MapsState())
+            res.set_answer('Введи любое место и я тебе его покажу на карте!')
+            return
+        res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
+                       'Что хочешь попробовать?')
