@@ -2,16 +2,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from alice_module import *
+from conditions import CONDITIONS
 import re
 import logging
-from abc import abstractmethod, ABC
-
 from dotenv import load_dotenv
 import requests
 import os
 
-env_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(env_path)
 env_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(env_path)
 logging.basicConfig(
@@ -24,7 +21,7 @@ SCAN_WORDS = {'проверь', 'просканируй', 'сканируй', '�
 EXIT_WORDS = {'выход', 'пока', 'выйти', 'уйти', 'покинуть'}
 CHOICE_WORDS = {'функция', 'функции', 'возможности', 'возможность', 'варианты', 'вариант',
                 'модули', 'модуль', 'умеешь'}
-SKILLS_WORDS = {'переводчик', 'сканер'}
+SKILLS_WORDS = {'переводчик', 'сканер', 'погода'}
 THANKS_WORDS = {'спасибо', 'класс', 'круто'}
 TRANSLATE_WORDS = {'переведи', 'переведите', 'перевод'}
 
@@ -35,6 +32,8 @@ TRANSLATOR_TOKEN = os.getenv('TRANSLATOR_TOKEN')
 MAPS_URL = f'https://dialogs.yandex.net/api/v1/skills/{SKILL_ID}/images/'
 
 API_KEY = os.getenv('API_KEY')
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
+GEOCODER_API_KEY = os.getenv('GEOCODER_API_KEY')
 VT_URL = 'https://www.virustotal.com/api/v3/urls'
 
 
@@ -83,9 +82,20 @@ class State(ABC):
 
 
 class ScanUrlState(State):
-    """
-    Реализация класса сканирования для удобной работы с VirusTotal API
-    """
+    """Класс ScanUrlState - одно из состояний навыка Алисы.
+    ----------------------------------------------------------
+    Задача класса - реализовывать сканер ссылок.
+    --------------------------------------------------------------------------------------------
+    Методы
+        handle_dialog(res, req) - основная функция управления диалогом с пользователем
+        __delete_unnecessary_words(words) - удаляет из списка слов пользователя ненужные для
+            перевода слова.
+        __check_url_regex(url: str) - проверяет ссылку на соответствие стандартному формату ссылок.
+        __get_url_id(url: str) - возвращает id ссылки, необходимый для работы с API.
+        __get_info(url_id: str) - возвращает отчет по ссылке от разных антивирусов.
+        scan(self, url: str) - основной метод класса, включает в себя взаимодействие всех методов,
+            в итоге возвращает необходимый ответ пользователю.
+    ---------------------------------------------------------------------------------------------"""
 
     def handle_dialog(self, res: AliceResponse, req: AliceRequest) -> None:
         try:
@@ -325,6 +335,73 @@ class TranslatorState(State):
         return translated
 
 
+class WeatherState(State):
+    """Класс WeatherState - одно из состояний навыка Алисы.
+        ----------------------------------------------------------
+        Задача класса - реализовывать погодный информатор.
+        --------------------------------------------------------------------------------------------
+        Методы
+            handle_dialog(res, req) - основная функция управления диалогом с пользователем
+            __string_for_geocoder(place_dict: dict) - возвращает очищенный гео-запрос, необходимый
+                для определения координат места, в котором надо узнать погоду.
+            __get_coord(place: str) - возвращает словарь координат места.
+            __get_info(self, req: AliceRequest) - основной метод класса, включает в себя взаимодействие всех методов,
+                в итоге возвращает необходимый ответ пользователю.
+        ---------------------------------------------------------------------------------------------"""
+
+    def handle_dialog(self, res: AliceResponse, req: AliceRequest):
+        try:
+            if set(req.words).intersection(EXIT_WORDS):
+                self.context.transition_to(HelloState())
+                return
+            if set(req.words).intersection(THANKS_WORDS):
+                res.set_answer('Ага, не за что :)')
+            else:
+                weather = self.__get_info(req)
+                if weather:
+                    res.set_answer(weather)
+                else:
+                    raise UserWarning
+        except UserWarning:
+            res.set_answer('Что-то вы делаете не так, либо пробуйте еще, либо измените ваш запрос.')
+
+    @staticmethod
+    def __string_for_geocoder(place_dict: dict) -> str or bool:
+        if len(place_dict.keys()):
+            return ' '.join([place_dict[key] for key in place_dict.keys()])
+        return False
+
+    @staticmethod
+    def __get_coord(place: str) -> dict or bool:
+        r = requests.get(f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={GEOCODER_API_KEY}&geocode={place}')
+        if r.status_code == 200:
+            json_data = r.json()
+            coord = json_data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point'][
+                'pos'].split()
+            return {'lat': coord[1], 'lon': coord[0]}
+        return False
+
+    def __get_info(self, req: AliceRequest) -> dict or bool:
+        if req.geo_names:
+            place_req = self.__string_for_geocoder(req.geo_names[0])
+            coord = self.__get_coord(place_req)
+            if coord:
+                params = {'X-Yandex-API-Key': WEATHER_API_KEY}
+                lat = coord['lat']
+                lon = coord['lon']
+                url = f'https://api.weather.yandex.ru/v2/forecast?lat={lat}&lon={lon}&extra=true'
+                req = requests.get(url, headers=params)
+                if req.status_code == 200:
+                    now_temp = req.json()['fact']['temp']
+                    feels_like = req.json()['fact']['feels_like']
+                    cond = CONDITIONS[req.json()['fact']['condition']]
+                    wind = req.json()['fact']['wind_speed']
+                    yesterday = req.json()['yesterday']['temp']
+                    return f'СЕГОДНЯ: температура: {now_temp}°C, ощущается как {feels_like}°C; условия: {cond}, ' \
+                           f'ветер: {wind} м/с;\nЗАВТРА: температура: {yesterday}°C'
+        return False
+
+
 class MapsState(State):
     """Класс MapsState - одно из состояний навыка для Алисы для взаимодействия с API Яндекс.Карт
     ---------------------------------------------------------------------------------------------
@@ -456,8 +533,12 @@ class ChoiceState(State):
         elif set(req.words).intersection(SKILLS_WORDS) == {'сканер'}:
             self.context.transition_to(ScanUrlState())
             res.set_answer('Хорошо, отправь ссылку на сканирование!')
+        elif set(req.words).intersection(SKILLS_WORDS) == {'погода'}:
+            self.context.transition_to(WeatherState())
+            res.set_answer('Хорошо, пиши место, где надо узнать погоду!\n'
+                           'Пиши: [место]')
         else:
-            res.set_answer('У нас есть несколько функций: переводчик и сканер. '
+            res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты. '
                            'Что хочешь попробовать?')
 
 
