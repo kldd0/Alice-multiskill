@@ -129,6 +129,7 @@ class ScanUrlState(State):
         except UserWarning:
             res.set_answer('Что-то не так, либо Вы не ввели ссылку, либо она неправильная. '
                            'Попробуйте еще раз, либо поменяйте ссылку ;)')
+        res.set_suggests([{'title': 'Выйти', 'hide': True}])
 
     def __delete_unnecessary_words(self, words: list) -> str or dict:
         for e in words:
@@ -372,7 +373,8 @@ class WeatherState(State):
                 else:
                     raise UserWarning
         except UserWarning:
-            res.set_answer('Что-то вы делаете не так, либо пробуйте еще, либо измените ваш запрос.')
+            res.set_answer('0_o Что-то вы делаете не так, либо пробуйте еще, либо измените ваш запрос.')
+        res.set_suggests([{'title': 'Выйти', 'hide': True}])
 
     @staticmethod
     def __string_for_geocoder(place_dict: dict) -> str or bool:
@@ -541,7 +543,7 @@ class MapsState(State):
 
 class HelloState(State):
     def handle_dialog(self, res: AliceResponse, req: AliceRequest):
-        res.set_answer('Привет. Меня зовут Алиса.')
+        res.set_answer('Привет. Меня зовут Алиса.\nА это новый мультинавык от разрабов k!dd0 и R1fl3')
         self.context.transition_to(ChoiceState())
 
 
@@ -558,12 +560,14 @@ class ChoiceState(State):
             return
         if 'сканер' in req.words:
             self.context.transition_to(ScanUrlState())
-            res.set_answer('Хорошо, отправь ссылку на сканирование!')
+            res.set_answer('Хорошо, отправь ссылку на сканирование!\n'
+                           'Пиши: [url] или ссылка: [url]')
             return
-        if 'погода' in req.words:
+        if 'погода' in req.words or 'погоду' in req.words:
             self.context.transition_to(WeatherState())
             res.set_answer('Хорошо, пиши место, где надо узнать погоду!\n'
                            'Пиши: [место]')
+            res.set_suggests([{'title': 'Погода в Москве', 'hide': True}])
             return
         if 'карты' in req.words:
             self.context.transition_to(MapsState())
@@ -571,3 +575,4 @@ class ChoiceState(State):
             return
         res.set_answer('У нас есть несколько функций: переводчик, сканер, погода и карты.\n'
                        'Что хочешь попробовать?')
+        res.set_suggests([{'title': 'Выйти', 'hide': True}])
