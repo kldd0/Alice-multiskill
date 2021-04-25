@@ -1,5 +1,5 @@
 # Multifunctional skill for Yandex-Alice
-Language: ![https://img.shields.io/badge/Python-3.8-blue](https://img.shields.io/badge/Python-3.8-blue)
+`Language:` ![https://img.shields.io/badge/Python-3.8-blue](https://img.shields.io/badge/Python-3.8-blue)
 
 # Installation
 ```
