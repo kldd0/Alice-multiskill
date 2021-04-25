@@ -15,7 +15,7 @@ SKILL_ID={API-KEY}
 ACCESS_TOKEN={API-KEY}
 TRANSLATOR_TOKEN={API-KEY}
 ```
-#### then you can use ngrok to run
+#### then you can use ```ngrok``` to run
 #### default port for work is ```8989```
 #### you can change it in ```main.py```
 ```python
@@ -25,4 +25,4 @@ if __name__ == "__main__":
 
 
 
-<h5>--Project for Yandex Lyceum--</h5>
+> Project for Yandex Lyceum
