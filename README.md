@@ -1,4 +1,5 @@
 # Multifunctional skill for Yandex-Alice
+/ansible/quality/:projectId
 
 # Installation
 ```
