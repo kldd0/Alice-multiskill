@@ -1,6 +1,6 @@
 # Multifunctional skill for Yandex-Alice
 
-# installation
+# Installation
 ```
 git clone https://github.com/kldd0/Alice-multiskill.git
 ```
