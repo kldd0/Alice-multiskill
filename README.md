@@ -5,8 +5,9 @@
 git clone https://github.com/kldd0/Alice-multiskill.git
 ```
 # Start
-#### to run it locally, you need to create a file ```.env``` and put it in it api-keys
-#### of the following services: Yandex-geocoder, Yandex-maps, VirusTotal, Yandex-weather
+#### to run it locally, you need to create a file ```.env``` and put it in it api-keys of the following services:
+#### Yandex-geocoder, Yandex-maps, VirusTotal, Yandex-weather
+> the file should look like in the exhibition
 ```
 API_KEY={API-KEY}
 WEATHER_API_KEY={API-KEY}
