@@ -25,7 +25,7 @@ TRANSLATOR_TOKEN={API-KEY}
 if __name__ == "__main__":
     app.run(port=8989)
 ```
-#### then you need to run `main.py` and put the url of ngrok in form `Backend` as `Webhook URL` in Yandex-dialogs
+#### then you need to run `main.py` and put the url of ngrok in form `Backend` in Yandex-dialogs as `Webhook URL`
 #### example of ngrok address
 ```
 https://e0aab85a27ef.ngrok.io
